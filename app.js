@@ -1,5 +1,5 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
-import { getAuth, GoogleAuthProvider, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+import { getAuth, GoogleAuthProvider, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut, setPersistence, browserLocalPersistence } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
 import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 
 const MODEL_URL='https://teachablemachine.withgoogle.com/models/wOauaqodm/';
@@ -12,7 +12,11 @@ const firebaseConfig=window.APP_CONFIG?.firebaseConfig; const fbApp=initializeAp
 let model,current,imageData='',photoGps=null,user=null,guides=[],hazards=[],stopGuides=null,stopHazards=null;
 const esc=s=>{const d=document.createElement('div');d.textContent=s;return d.innerHTML}; const normal=label=>Object.keys(SPECIES).find(n=>label.includes(n))||'문어';
 function guestGuides(){try{return JSON.parse(sessionStorage.getItem(guestKey)||'[]')}catch{return[]}} function guestHazards(){try{return JSON.parse(sessionStorage.getItem(hazardKey)||'[]')}catch{return[]}}
-function updateAccount(){const name=user?(user.displayName||user.email):'비회원';$('#profileName').textContent=name;$('#profileButton').textContent=user?'계정 관리':'로그인';$('#guideMessage').textContent=user?`${name}의 동기화 도감`:'비회원 도감 · 종료 시 삭제'}
+function updateAccount(){
+  const status=$('#profileName'),button=$('#profileButton');
+  if(user){const name=user.displayName||user.email||'회원';status.textContent=`회원 · ${name}`;button.textContent='프로필 관리';button.setAttribute('aria-label',`${name} 계정 프로필 관리`);$('#guideMessage').textContent=`${name}의 동기화 도감`}
+  else{status.textContent='비회원';button.textContent='로그인';button.setAttribute('aria-label','Google 계정 로그인');$('#guideMessage').textContent='비회원 도감 · 종료 시 삭제'}
+}
 function renderGuide(){const out=$('#guideList');if(!guides.length){out.innerHTML='<p class="empty">아직 저장한 생물이 없어요. 사진을 분석한 뒤 도감에 저장해 보세요.</p>';return}out.innerHTML=guides.map(x=>`<article class="guide-card"><img src="${x.image}" data-id="${x.id}" alt="${esc(x.name)}"><div><h3>${esc(x.name)}</h3><p>${esc(x.beach)} · ${esc(x.date)}</p><p>${x.lat.toFixed(5)}, ${x.lng.toFixed(5)}</p><button class="delete-guide" data-id="${x.id}">도감에서 삭제</button></div></article>`).join('');document.querySelectorAll('.guide-card img').forEach(el=>el.onclick=()=>showDetail(guides.find(x=>x.id===el.dataset.id)));document.querySelectorAll('.delete-guide').forEach(el=>el.onclick=()=>removeGuide(el.dataset.id));}
 function renderHazards(){ $('#hazardCount').textContent=`위험 표시 ${hazards.length}건`;const out=$('#hazardList');out.innerHTML=hazards.length?hazards.map(x=>`<div class="hazard"><span>⚠ <b>${esc(x.species)}</b> · ${esc(x.beach)}<small>${x.lat.toFixed(5)}, ${x.lng.toFixed(5)} · ${esc(x.date)}</small></span>${user&&x.reporterId===user.uid?`<button data-id="${x.id}" class="delete-hazard">삭제하기</button>`:''}</div>`).join(''):'<p class="empty">현재 위험 표시는 0건입니다.</p>';document.querySelectorAll('.delete-hazard').forEach(el=>el.onclick=()=>removeHazard(el.dataset.id));}
 function map(beach){const [lat,lng]=BEACHES[beach];$('#mapFrame').innerHTML=`<iframe title="${beach} 지도" src="https://www.google.com/maps?q=${lat},${lng}&z=15&output=embed" loading="lazy"></iframe>`}
@@ -31,10 +35,15 @@ $('#analyzeButton').onclick=async()=>{if(!imageData)return alert('먼저 생물 
 // 일부 브라우저에서 대화상자가 늦게 만들어지는 경우에도 앱이 멈추지 않도록 안전하게 연결합니다.
 function bindAccountControls(){
   $('#profileButton')?.addEventListener('click',()=>$('#profileDialog')?.showModal());
-  $('#googleLogin')?.addEventListener('click',()=>signInWithRedirect(auth,provider));
+  $('#googleLogin')?.addEventListener('click',async()=>{try{await setPersistence(auth,browserLocalPersistence);await signInWithRedirect(auth,provider)}catch(err){alert(`로그인 준비에 실패했습니다: ${err.code||err.message}`)}});
   $('#logoutButton')?.addEventListener('click',()=>signOut(auth));
   $('#orb')?.addEventListener('click',()=>$('#quickMenu')?.classList.toggle('open'));
   document.querySelectorAll('[data-beach]').forEach(b=>b.addEventListener('click',()=>map(b.dataset.beach)));
 }
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',bindAccountControls,{once:true}); else bindAccountControls();
-getRedirectResult(auth).catch(err=>alert(`로그인에 실패했습니다: ${err.code||err.message}`));onAuthStateChanged(auth,next=>{user=next;updateAccount();startSync();if(next)$('#profileDialog').close()});map('해운대');getModel().then(()=>$('#modelStatus').textContent='17종 비교 분석 모델이 준비되었습니다.').catch(()=>$('#modelStatus').textContent='모델은 분석 버튼을 눌렀을 때 다시 연결합니다.');
+$('#profileName').textContent='로그인 확인 중';
+setPersistence(auth,browserLocalPersistence).catch(console.error).finally(()=>{
+  getRedirectResult(auth).catch(err=>alert(`로그인에 실패했습니다: ${err.code||err.message}`));
+  onAuthStateChanged(auth,next=>{user=next;updateAccount();startSync();if(next)$('#profileDialog').close()});
+});
+map('해운대');getModel().then(()=>$('#modelStatus').textContent='17종 비교 분석 모델이 준비되었습니다.').catch(()=>$('#modelStatus').textContent='모델은 분석 버튼을 눌렀을 때 다시 연결합니다.');
