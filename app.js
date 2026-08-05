@@ -1,5 +1,5 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
-import { getAuth, GoogleAuthProvider, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut, setPersistence, indexedDBLocalPersistence, browserLocalPersistence } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut, setPersistence, indexedDBLocalPersistence, browserLocalPersistence } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
 import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 
 const MODEL_URL='https://teachablemachine.withgoogle.com/models/wOauaqodm/';
@@ -35,7 +35,7 @@ $('#analyzeButton').onclick=async()=>{if(!imageData)return alert('먼저 생물 
 // 일부 브라우저에서 대화상자가 늦게 만들어지는 경우에도 앱이 멈추지 않도록 안전하게 연결합니다.
 function bindAccountControls(){
   $('#profileButton')?.addEventListener('click',()=>$('#profileDialog')?.showModal());
-  $('#googleLogin')?.addEventListener('click',async()=>{try{await enablePersistentLogin();await signInWithRedirect(auth,provider)}catch(err){alert(`로그인 준비에 실패했습니다: ${err.code||err.message}`)}});
+  $('#googleLogin')?.addEventListener('click',async()=>{try{await enablePersistentLogin();await signInWithPopup(auth,provider)}catch(err){alert(`로그인에 실패했습니다: ${err.code||err.message}`)}});
   $('#logoutButton')?.addEventListener('click',()=>signOut(auth));
   $('#orb')?.addEventListener('click',()=>$('#quickMenu')?.classList.toggle('open'));
   document.querySelectorAll('[data-beach]').forEach(b=>b.addEventListener('click',()=>map(b.dataset.beach)));
@@ -48,8 +48,5 @@ async function enablePersistentLogin(){
   catch { await setPersistence(auth,browserLocalPersistence); }
 }
 $('#profileName').textContent='로그인 확인 중';
-enablePersistentLogin().catch(console.error).finally(()=>{
-  getRedirectResult(auth).catch(err=>alert(`로그인에 실패했습니다: ${err.code||err.message}`));
-  onAuthStateChanged(auth,next=>{user=next;updateAccount();startSync();if(next)$('#profileDialog').close()});
-});
+enablePersistentLogin().catch(console.error).finally(()=>onAuthStateChanged(auth,next=>{user=next;updateAccount();startSync();if(next)$('#profileDialog').close()}));
 map('해운대');getModel().then(()=>$('#modelStatus').textContent='17종 비교 분석 모델이 준비되었습니다.').catch(()=>$('#modelStatus').textContent='모델은 분석 버튼을 눌렀을 때 다시 연결합니다.');
