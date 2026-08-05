@@ -1,5 +1,5 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+import { getAuth, GoogleAuthProvider, signInWithRedirect, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
 import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, serverTimestamp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 
 function shrinkPhoto(dataUrl) {
@@ -33,7 +33,8 @@ if (!config) {
   window.firebaseService = {
     ready: true,
     auth,
-    login: () => signInWithPopup(auth, provider),
+    // 앱 내 브라우저에서 팝업이 차단되는 문제를 피하기 위해 리디렉션 로그인 사용
+    login: () => signInWithRedirect(auth, provider),
     logout: () => signOut(auth),
     onUser: (callback) => onAuthStateChanged(auth, callback),
     async saveGuide(uid, entry) {
