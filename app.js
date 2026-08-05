@@ -1,5 +1,5 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
-import { getAuth, GoogleAuthProvider, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut, setPersistence, browserLocalPersistence } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+import { getAuth, GoogleAuthProvider, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut, setPersistence, indexedDBLocalPersistence, browserLocalPersistence } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
 import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 
 const MODEL_URL='https://teachablemachine.withgoogle.com/models/wOauaqodm/';
@@ -35,14 +35,20 @@ $('#analyzeButton').onclick=async()=>{if(!imageData)return alert('먼저 생물 
 // 일부 브라우저에서 대화상자가 늦게 만들어지는 경우에도 앱이 멈추지 않도록 안전하게 연결합니다.
 function bindAccountControls(){
   $('#profileButton')?.addEventListener('click',()=>$('#profileDialog')?.showModal());
-  $('#googleLogin')?.addEventListener('click',async()=>{try{await setPersistence(auth,browserLocalPersistence);await signInWithRedirect(auth,provider)}catch(err){alert(`로그인 준비에 실패했습니다: ${err.code||err.message}`)}});
+  $('#googleLogin')?.addEventListener('click',async()=>{try{await enablePersistentLogin();await signInWithRedirect(auth,provider)}catch(err){alert(`로그인 준비에 실패했습니다: ${err.code||err.message}`)}});
   $('#logoutButton')?.addEventListener('click',()=>signOut(auth));
   $('#orb')?.addEventListener('click',()=>$('#quickMenu')?.classList.toggle('open'));
   document.querySelectorAll('[data-beach]').forEach(b=>b.addEventListener('click',()=>map(b.dataset.beach)));
 }
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',bindAccountControls,{once:true}); else bindAccountControls();
+// 로그인 정보는 IndexedDB에 영구 보관합니다. 브라우저를 닫거나 새로고침해도
+// signOut()을 직접 호출하기 전까지 지우지 않습니다.
+async function enablePersistentLogin(){
+  try { await setPersistence(auth,indexedDBLocalPersistence); }
+  catch { await setPersistence(auth,browserLocalPersistence); }
+}
 $('#profileName').textContent='로그인 확인 중';
-setPersistence(auth,browserLocalPersistence).catch(console.error).finally(()=>{
+enablePersistentLogin().catch(console.error).finally(()=>{
   getRedirectResult(auth).catch(err=>alert(`로그인에 실패했습니다: ${err.code||err.message}`));
   onAuthStateChanged(auth,next=>{user=next;updateAccount();startSync();if(next)$('#profileDialog').close()});
 });
